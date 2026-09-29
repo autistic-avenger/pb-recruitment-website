@@ -18,6 +18,7 @@ import AddContest from "./pages/AddContest";
 import AdminContestProblems from "./pages/AdminContestProblems";
 import AdminContestContestants from "./pages/AdminContestContestants";
 import { AdminRoute } from "./components/AdminRoute";
+import { AuthenticatedRoute } from "./components/AuthenticatedRoute";
 
 const App: React.FC = () => {
   return (
@@ -26,7 +27,10 @@ const App: React.FC = () => {
         <Route path="/test" element={<TestPage />} />
         <Route path="/contests" element={<ContestList />} />
         <Route path="/contest/:id" element={<ContestDetail />} />
-        <Route path="/contests/:contestId" element={<ContestLayout />}>
+        <Route
+          path="/contests/:contestId"
+          element={<AuthenticatedRoute><ContestLayout /></AuthenticatedRoute>}
+        >
           <Route path="problems" element={<ContestProblemsPage />} />
           <Route path="problems/:problemId" element={<ContestProblemPage />} />
           <Route path="leaderboard" element={<ContestLeaderboardPage />} />
@@ -34,8 +38,7 @@ const App: React.FC = () => {
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/contests/:contestId/leaderboard" element={<ContestLeaderboardPage />} />
+        <Route path="/profile" element={<AuthenticatedRoute><Profile /></AuthenticatedRoute>} />
         <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
         <Route path="/admin/contest/create" element={<AdminRoute><AddContest /></AdminRoute>} />
         <Route path="/admin/contest/:contestId/edit" element={<AdminRoute><AddContest /></AdminRoute>} />
