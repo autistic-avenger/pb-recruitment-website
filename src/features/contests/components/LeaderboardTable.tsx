@@ -104,7 +104,7 @@ export const LeaderboardTable = ({ entries, currentUserId }: LeaderboardTablePro
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm text-gray-400 font-['DM_Sans']">
-                        {formatTimestamp(entry.last_submission_time)}
+                        {(entry.last_submission_time == 0?"-":formatTimestamp(entry.last_submission_time))}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
