@@ -56,3 +56,13 @@ export interface Contest {
   start_time: number;
   end_time: number;
 }
+
+
+export interface RunResponse {
+  status: string;
+  stdout?: string;
+  stderr?: string;
+  compile_output?: string;
+  runtime?: number;
+  memory?: number;
+}

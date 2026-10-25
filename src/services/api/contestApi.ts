@@ -1,5 +1,5 @@
 import axios, { type AxiosInstance, type AxiosError } from 'axios';
-import type { Problem, LeaderboardEntry } from '@/features/contests/problem.types';
+import type { Problem, LeaderboardEntry, RunResponse } from '@/features/contests/problem.types';
 import { Contest } from "@/models/contest";
 import { auth } from '@/lib/firebase';
 import { encodeBase64 } from '@/lib/base64';
@@ -85,6 +85,31 @@ class ContestApiService {
       }
       throw error;
     }
+  }
+
+  async runCode(language: string, code: string, stdin: string = ''): Promise<RunResponse> {
+    if (MOCK_SUBMISSION_JUDGING) {
+      await new Promise((r) => setTimeout(r, 600));
+      return {
+        status: 'accepted',
+        stdout: `Execution successful.\nInput:\n${stdin || '(empty)'}`,
+        stderr: '',
+        compile_output: '',
+        runtime: 18,
+        memory: 1024,
+      };
+    }
+
+    const response = await this.axiosInstance.post<RunResponse>(
+      '/submission/run',
+      {
+        language,
+        code,
+        stdin,
+      },
+      { timeout: 20_000 },
+    );
+    return response.data;
   }
 
   async submitCodeSolution(
@@ -313,3 +338,4 @@ export interface ApiError {
 }
 
 export const contestApi = new ContestApiService();
+export type { RunResponse };
