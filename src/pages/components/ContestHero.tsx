@@ -23,6 +23,10 @@ const ContestHero: React.FC<ContestHeroProps> = ({ contest }) => {
     },
   };
 
+  const eligibleYearsText = typeof contest.formatEligibleYears === "function"
+    ? contest.formatEligibleYears()
+    : "All Years";
+
   return (
     <section className="relative w-full py-16 px-4 md:px-8 border-b border-gray-700 bg-gradient-to-b from-green-950/20 to-black">
       <div className="max-w-6xl mx-auto">
@@ -54,7 +58,13 @@ const ContestHero: React.FC<ContestHeroProps> = ({ contest }) => {
               <div>
                 <p className="text-gray-400 text-sm mb-1">Registration</p>
                 <p className="text-white font-semibold text-lg">
-                {contest.isRegistrationOpen() ? "Open" : "Closed"}
+                  {contest.isRegistrationOpen() ? "Open" : "Closed"}
+                </p>
+              </div>
+              <div>
+                <p className="text-gray-400 text-sm mb-1">Eligible Years</p>
+                <p className="text-green-400 font-semibold text-lg">
+                  {eligibleYearsText}
                 </p>
               </div>
             </div>

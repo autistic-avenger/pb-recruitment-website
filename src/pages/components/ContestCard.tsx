@@ -8,6 +8,10 @@ interface ContestCardProps {
 }
 
 const ContestCard: React.FC<ContestCardProps> = ({ contest, onClick }) => {
+  const eligibleYearsText = typeof contest.formatEligibleYears === "function"
+    ? contest.formatEligibleYears()
+    : "All Years";
+
   return (
     <motion.div
       whileHover={{ y: -8, boxShadow: "0 20px 40px rgba(34, 197, 94, 0.1)" }}
@@ -41,6 +45,14 @@ const ContestCard: React.FC<ContestCardProps> = ({ contest, onClick }) => {
             <p className="text-gray-400 text-xs mb-1">End Time</p>
             <p className="text-red-400 font-semibold">{new Date(contest.end_time).toLocaleString()}</p>
           </div>
+        </div>
+
+        {/* Eligibility */}
+        <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
+          <span>Eligible Years:</span>
+          <span className="text-green-400 font-medium">
+            {eligibleYearsText}
+          </span>
         </div>
 
         {/* Call to action button */}

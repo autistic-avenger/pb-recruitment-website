@@ -48,17 +48,12 @@ const ContestTimeline: React.FC<ContestTimelineProps> = ({ contest }) => {
     setIsRegistered(contest.is_registered ?? false);
   }, [contest.id, contest.is_registered]);
 
-  // Countdown timer effect
   useEffect(() => {
-  if (!isRegistered) return;
+  if (isRegistered) return;
 
   const updateCountdown = () => {
-  const now = new Date().getTime();
-  const startTime = new Date(contest.start_time).getTime();
-  const distance = startTime - now;
-    console.log('Current time:', new Date(now).toLocaleString('en-IN'));
-    console.log('Contest start time:', new Date(contest.start_time).toLocaleString('en-IN'));
-    console.log('Distance (ms):', distance);
+    const now = new Date().getTime();
+    const distance = new Date(contest.start_time).getTime() - now;
 
     if (distance < 0) {
       setContestStarted(true);
@@ -66,12 +61,13 @@ const ContestTimeline: React.FC<ContestTimelineProps> = ({ contest }) => {
       return;
     }
 
-    const hours = Math.floor(distance / (1000 * 60 * 60));
+    const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
     const seconds = Math.floor((distance % (1000 * 60)) / 1000);
 
     setCountdown(
-      `${hours.toString().padStart(2, "0")}:${minutes
+      `${days}d ${hours.toString().padStart(2, "0")}:${minutes
         .toString()
         .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`
     );
@@ -83,6 +79,10 @@ const ContestTimeline: React.FC<ContestTimelineProps> = ({ contest }) => {
 
   return () => clearInterval(interval);
   }, [isRegistered, contest.start_time]);
+
+  const eligibleYearsText = typeof contest.formatEligibleYears === "function"
+    ? contest.formatEligibleYears()
+    : "All Years";
 
   const handleRegister = async () => {
     const auth = getAuth();
@@ -106,11 +106,21 @@ const ContestTimeline: React.FC<ContestTimelineProps> = ({ contest }) => {
 
         if (err?.response?.status) {
           switch (err.response.status) {
-            case 403:
-              message =
-                err.response.data?.error ||
-                "Registration is closed or you are not eligible.";
+            case 403: {
+              const errText = (err.response.data?.error || "").toLowerCase();
+              if (
+                errText === "invalid year" ||
+                errText.includes("year") ||
+                errText.includes("eligible")
+              ) {
+                message = `You are not eligible for this contest based on your academic year. This contest is only open to students in ${eligibleYearsText}.`;
+              } else {
+                message =
+                  err.response.data?.error ||
+                  "Registration is closed or you are not eligible.";
+              }
               break;
+            }
 
             case 404:
               message =
@@ -211,7 +221,13 @@ const ContestTimeline: React.FC<ContestTimelineProps> = ({ contest }) => {
             variants={slideUp}
             className="bg-gradient-to-br from-green-950/40 to-green-900/20 border border-green-500/40 rounded-xl p-8"
           >
-            <h2 className="text-2xl font-anton text-beige mb-4">Ready to compete?</h2>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+              <h2 className="text-2xl font-anton text-beige">Ready to compete?</h2>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-500/10 border border-green-500/30 text-green-400 text-xs font-semibold uppercase tracking-wider">
+                <span>Eligible:</span>
+                <span className="text-white normal-case font-bold">{eligibleYearsText}</span>
+              </span>
+            </div>
             <p className="text-gray-300 mb-6">
               {isContestEnded
                 ? "This contest has ended. Check out the leaderboard to see final rankings!"
