@@ -79,7 +79,6 @@ const getStatusBadge = (status: string) => {
   }
 };
 
-
 const getRunErrorMessage = (error: unknown): string => {
   if (axios.isAxiosError(error)) {
     if (error.response?.status === 404) return 'Code execution service is currently disabled on the server.';
@@ -461,7 +460,7 @@ export const CodeProblemView = ({ problem, onSubmit, onRun }: CodeProblemViewPro
             <div className="flex items-center gap-2">
               <Button
                 onClick={handleRunCode}
-                disabled={isRunning}
+                disabled={isRunning || !code.trim()}
                 size="sm"
                 variant="outline"
                 className="text-xs flex items-center gap-1 text-black hover:text-black"

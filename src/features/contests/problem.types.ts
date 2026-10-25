@@ -60,9 +60,9 @@ export interface Contest {
 
 export interface RunResponse {
   status: string;
-  stdout?: string;
-  stderr?: string;
-  compile_output?: string;
-  runtime?: number;
-  memory?: number;
+  stdout: string;
+  stderr: string;
+  compile_output: string;
+  runtime: number;
+  memory: number;
 }

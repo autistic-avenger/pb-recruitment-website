@@ -5,7 +5,13 @@ export interface PaginatedLeaderboard {
 }
 
 import axios, { type AxiosInstance, type AxiosError } from 'axios';
-import type { Problem, LeaderboardEntry, RunResponse } from '@/features/contests/problem.types';
+import type { Problem, LeaderboardEntry } from '@/features/contests/problem.types';
+import {
+  toProblemDetails,
+  toProblemOverview,
+  type ProblemDetailsResponse,
+  type ProblemOverviewResponse,
+} from '@/features/contests/problemAdapter';
 import { Contest } from "@/models/contest";
 import { auth } from '@/lib/firebase';
 import { encodeBase64 } from '@/lib/base64';
@@ -67,13 +73,13 @@ class ContestApiService {
   }
 
   async getContestProblems(contestId: string): Promise<Problem[]> {
-    const response = await this.axiosInstance.get<Problem[]>(`/contests/${contestId}/problems`);
-    return response.data;
+    const response = await this.axiosInstance.get<ProblemOverviewResponse[]>(`/contests/${contestId}/problems`);
+    return response.data.map((problem) => toProblemOverview(problem, contestId));
   }
 
   async getProblemById(contestId: string, problemId: string): Promise<Problem> {
-    const response = await this.axiosInstance.get<Problem>(`/contests/${contestId}/problems/${problemId}`);
-    return response.data;
+    const response = await this.axiosInstance.get<ProblemDetailsResponse>(`/contests/${contestId}/problems/${problemId}`);
+    return toProblemDetails(response.data);
   }
 
   async getContestLeaderboard(contestId: string, page: number = 0): Promise<PaginatedLeaderboard> {
@@ -84,7 +90,6 @@ class ContestApiService {
     const [totalCount, totalPages] = ['x-total-count', 'x-total-pages'].map((header) => {
       const value = response.headers[header];
       if (typeof value !== 'string' || !/^\d+$/.test(value) || !Number.isSafeInteger(Number(value))) {
-        // Fallback for responses without pagination headers
         return response.data?.length || 0;
       }
       return Number(value);
@@ -110,6 +115,14 @@ class ContestApiService {
   }
 
   async runCode(language: string, code: string, stdin: string = ''): Promise<RunResponse> {
+    return this.runCodeSolution(code, language, stdin);
+  }
+
+  async runCodeSolution(
+    code: string,
+    language: string,
+    stdin: string,
+  ): Promise<RunCodeResponse> {
     if (MOCK_SUBMISSION_JUDGING) {
       await new Promise((r) => setTimeout(r, 600));
       return {
@@ -122,23 +135,6 @@ class ContestApiService {
       };
     }
 
-    const response = await this.axiosInstance.post<RunResponse>(
-      '/submission/run',
-      {
-        language,
-        code,
-        stdin,
-      },
-      { timeout: 20_000 },
-    );
-    return response.data;
-  }
-
-  async runCodeSolution(
-    code: string,
-    language: string,
-    stdin: string,
-  ): Promise<RunCodeResponse> {
     const response = await this.axiosInstance.post<RunCodeResponse>(
       '/submission/run',
       {
@@ -327,6 +323,17 @@ export interface SubmissionResponse {
   submission_id: string;
 }
 
+export interface RunCodeResponse {
+  status: string;
+  stdout: string;
+  stderr: string;
+  compile_output: string;
+  runtime: number;
+  memory: number;
+}
+
+export type RunResponse = RunCodeResponse;
+
 export type SubmissionType = 'code' | 'mcq';
 
 export type SubmissionStatus =
@@ -388,5 +395,3 @@ export interface ApiError {
 }
 
 export const contestApi = new ContestApiService();
-export type { RunResponse };
-export type RunCodeResponse = RunResponse;

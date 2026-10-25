@@ -141,7 +141,6 @@ export const useLeaderboard = (contestId: string, refreshIntervalMs: number = 30
           }
         }
         if (!isNotStarted) {
-          // Suppress background errors only if valid data is already loaded and displayed
           if (!isBackground || !hasLoadedDataRef.current) {
             setLeaderboardError(err instanceof Error ? err.message : "Failed to fetch leaderboard");
           }
@@ -183,7 +182,6 @@ export const useLeaderboard = (contestId: string, refreshIntervalMs: number = 30
 
     const genRef = requestGenRef;
     return () => {
-      // Invalidate outstanding work during cleanup
       genRef.current++;
       clearInterval(interval);
     };
