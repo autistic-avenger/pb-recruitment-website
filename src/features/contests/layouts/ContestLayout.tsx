@@ -153,6 +153,7 @@ export const ContestLayout = () => {
         timeRemaining={timeRemaining}
         progress={progress}
         contestName={contest?.name || 'Contest'}
+        contestId={contestId}
         onSubmitContest={!isLeaderboardPage ? handleOpenEndModal : undefined}
       />
       

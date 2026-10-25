@@ -14,10 +14,14 @@ export const ContestLeaderboardPage = () => {
     leaderboard,
     contest,
     currentUserRank,
+    page,
+    setPage,
+    totalPages,
+    totalParticipants,
     isLoading,
     error,
     hasStarted,
-    totalParticipants,
+    refresh,
   } = leaderboardState;
 
   useEffect(() => {
@@ -75,12 +79,21 @@ export const ContestLeaderboardPage = () => {
           <div className="bg-red-950/40 border border-red-500/40 rounded-lg p-6 text-center">
             <p className="text-red-400 font-medium mb-2 font-['DM_Sans']">Error loading leaderboard</p>
             <p className="text-red-300 text-sm mb-4 font-['DM_Sans']">{error || 'Contest not found'}</p>
-            <Link
-              to="/contests"
-              className="inline-block px-4 py-2 bg-green text-black font-semibold rounded-md hover:bg-green-600 transition-colors font-['DM_Sans']"
-            >
-              Back to Contests
-            </Link>
+            <div className="flex justify-center gap-3">
+              <button
+                type="button"
+                onClick={refresh}
+                className="px-4 py-2 bg-green text-black font-semibold rounded-md hover:bg-green-600 transition-colors font-['DM_Sans'] text-sm"
+              >
+                Retry
+              </button>
+              <Link
+                to="/contests"
+                className="inline-block px-4 py-2 bg-gray-800 text-gray-200 border border-gray-700 font-semibold rounded-md hover:bg-gray-700 transition-colors font-['DM_Sans'] text-sm"
+              >
+                Back to Contests
+              </Link>
+            </div>
           </div>
         </div>
       </div>
@@ -123,9 +136,36 @@ export const ContestLeaderboardPage = () => {
         currentUserId={currentUserRank?.user_id}
       />
 
+      {/* Pagination controls */}
+      {(totalPages > 1 || page > 0) && (
+        <div className="flex items-center justify-between mt-4 text-sm text-gray-400 font-['DM_Sans']">
+          <span>
+            Page {page + 1} of {Math.max(1, totalPages)} ({totalParticipants} total participants)
+          </span>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={page === 0}
+              onClick={() => setPage(Math.max(0, page - 1))}
+              className="px-3 py-1 bg-gray-900 border border-gray-800 rounded disabled:opacity-40 hover:text-white transition"
+            >
+              Previous
+            </button>
+            <button
+              type="button"
+              disabled={page >= totalPages - 1}
+              onClick={() => setPage(page + 1)}
+              className="px-3 py-1 bg-gray-900 border border-gray-800 rounded disabled:opacity-40 hover:text-white transition"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Empty State for Filtered Results */}
       {leaderboard.length === 0 && totalParticipants > 0 && (
-        <div className="bg-black border border-gray-800 p-12 text-center">
+        <div className="bg-black border border-gray-800 p-12 text-center mt-4">
           <p className="text-gray-400 text-lg mb-2 font-['DM_Sans']">NO RESULTS FOUND</p>
           <p className="text-gray-600 text-sm font-['DM_Sans']">No results found</p>
         </div>

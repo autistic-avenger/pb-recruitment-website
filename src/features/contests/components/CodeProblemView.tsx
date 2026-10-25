@@ -1,14 +1,15 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
+import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Play, Send, Copy, Check, Clock, Cpu } from 'lucide-react';
-import axios from 'axios';
-import { contestApi, type RunResponse } from '@/services/api/contestApi';
+import { contestApi, type RunResponse, type RunCodeResponse } from '@/services/api/contestApi';
 import type { Problem } from '../problem.types';
 
 interface CodeProblemViewProps {
   problem: Problem;
   onSubmit?: (code: string, language: string) => Promise<void>;
+  onRun?: (code: string, language: string, stdin: string) => Promise<RunCodeResponse>;
 }
 
 const SUPPORTED_LANGUAGES = [
@@ -78,7 +79,27 @@ const getStatusBadge = (status: string) => {
   }
 };
 
-export const CodeProblemView = ({ problem, onSubmit }: CodeProblemViewProps) => {
+
+const getRunErrorMessage = (error: unknown): string => {
+  if (axios.isAxiosError(error)) {
+    if (error.response?.status === 404) return 'Code execution service is currently disabled on the server.';
+    if (error.response?.status === 401) return 'You must be logged in to execute code.';
+    if (error.response?.status === 429) {
+      const data = error.response.data as Record<string, unknown> | undefined;
+      return typeof data?.error === 'string' ? data.error : 'Run capacity busy; wait 5 seconds before trying again.';
+    }
+    const responseData: unknown = error.response?.data;
+    if (typeof responseData === 'object' && responseData !== null) {
+      const data = responseData as Record<string, unknown>;
+      if (typeof data.error === 'string') return data.error;
+      if (typeof data.message === 'string') return data.message;
+    }
+    if (error.message) return error.message;
+  }
+  return error instanceof Error ? error.message : 'Code execution failed. Please try again.';
+};
+
+export const CodeProblemView = ({ problem, onSubmit, onRun }: CodeProblemViewProps) => {
   const [selectedLanguage, setSelectedLanguage] = useState('cpp');
   const [codeByLanguage, setCodeByLanguage] = useState<Record<string, string>>(
     () => ({ ...DEFAULT_CODE_TEMPLATES }),
@@ -96,18 +117,27 @@ export const CodeProblemView = ({ problem, onSubmit }: CodeProblemViewProps) => 
   const [resizeDirection, setResizeDirection] = useState<'vertical' | 'horizontal' | null>(null);
   const rightPaneRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const inputRevisionRef = useRef(0);
   const code = codeByLanguage[selectedLanguage] || '';
 
-  const handleLanguageChange = useCallback((newLanguage: string) => {
-    setSelectedLanguage(newLanguage);
+  const invalidateRun = useCallback(() => {
+    inputRevisionRef.current += 1;
+    setRunResult(null);
+    setRunError(null);
   }, []);
 
+  const handleLanguageChange = useCallback((newLanguage: string) => {
+    invalidateRun();
+    setSelectedLanguage(newLanguage);
+  }, [invalidateRun]);
+
   const handleCodeChange = useCallback((value: string | undefined) => {
+    invalidateRun();
     setCodeByLanguage((current) => ({
       ...current,
       [selectedLanguage]: value || '',
     }));
-  }, [selectedLanguage]);
+  }, [invalidateRun, selectedLanguage]);
 
   useEffect(() => {
     if (problem.examples && problem.examples.length > 0) {
@@ -115,9 +145,8 @@ export const CodeProblemView = ({ problem, onSubmit }: CodeProblemViewProps) => 
     } else {
       setCustomInput('');
     }
-    setRunResult(null);
-    setRunError(null);
-  }, [problem.id]);
+    invalidateRun();
+  }, [problem.id, invalidateRun]);
 
   const handleRunCode = useCallback(async () => {
     if (!code.trim()) {
@@ -131,33 +160,27 @@ export const CodeProblemView = ({ problem, onSubmit }: CodeProblemViewProps) => 
     setActiveTab('output');
     setRunError(null);
     setRunResult(null);
+    const inputRevision = inputRevisionRef.current;
 
     const inputToUse = customInput !== '' ? customInput : (problem.examples?.[0]?.input || '');
 
     try {
-      const result = await contestApi.runCode(selectedLanguage, code, inputToUse);
+      const result = onRun
+        ? await onRun(code, selectedLanguage, inputToUse)
+        : await contestApi.runCode(selectedLanguage, code, inputToUse);
+
+      if (inputRevision !== inputRevisionRef.current) return;
       setRunResult(result);
     } catch (err: unknown) {
+      if (inputRevision !== inputRevisionRef.current) return;
       console.error('Run code error:', err);
-      let errorMsg = 'Failed to execute code';
-      if (axios.isAxiosError(err) && err.response) {
-        if (err.response.status === 429) {
-          errorMsg = (err.response.data as { error?: string })?.error || 'Run capacity busy; wait 5 seconds before trying again.';
-        } else if (err.response.status === 404) {
-          errorMsg = 'Code execution service is currently disabled on the server.';
-        } else if (err.response.status === 401) {
-          errorMsg = 'You must be logged in to execute code.';
-        } else {
-          errorMsg = (err.response.data as { error?: string })?.error || `Execution failed with status ${err.response.status}`;
-        }
-      } else if (err instanceof Error) {
-        errorMsg = err.message;
-      }
-      setRunError(errorMsg);
+      setRunError(getRunErrorMessage(err));
     } finally {
-      setIsRunning(false);
+      if (inputRevision === inputRevisionRef.current) {
+        setIsRunning(false);
+      }
     }
-  }, [code, selectedLanguage, customInput, problem.examples]);
+  }, [code, selectedLanguage, customInput, onRun, problem.examples]);
 
   const handleSubmit = async () => {
     if (!onSubmit) {
@@ -557,7 +580,10 @@ export const CodeProblemView = ({ problem, onSubmit }: CodeProblemViewProps) => 
                   </div>
                   <textarea
                     value={customInput}
-                    onChange={(e) => setCustomInput(e.target.value)}
+                    onChange={(e) => {
+                      invalidateRun();
+                      setCustomInput(e.target.value);
+                    }}
                     placeholder="Enter your custom input here..."
                     className="flex-1 bg-gray-900 border border-gray-700 rounded p-2 text-xs font-mono text-white focus:outline-none focus:border-green-400 resize-none"
                   />

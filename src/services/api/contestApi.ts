@@ -1,3 +1,9 @@
+export interface PaginatedLeaderboard {
+  entries: LeaderboardEntry[];
+  totalCount: number;
+  totalPages: number;
+}
+
 import axios, { type AxiosInstance, type AxiosError } from 'axios';
 import type { Problem, LeaderboardEntry, RunResponse } from '@/features/contests/problem.types';
 import { Contest } from "@/models/contest";
@@ -70,9 +76,25 @@ class ContestApiService {
     return response.data;
   }
 
-  async getContestLeaderboard(contestId: string): Promise<LeaderboardEntry[]> {
-    const response = await this.axiosInstance.get<LeaderboardEntry[]>(`/contests/${contestId}/leaderboard`);
-    return response.data;
+  async getContestLeaderboard(contestId: string, page: number = 0): Promise<PaginatedLeaderboard> {
+    const response = await this.axiosInstance.get<LeaderboardEntry[]>(
+      `/contests/${contestId}/leaderboard?page=${page}`,
+      { timeout: 15_000 }
+    );
+    const [totalCount, totalPages] = ['x-total-count', 'x-total-pages'].map((header) => {
+      const value = response.headers[header];
+      if (typeof value !== 'string' || !/^\d+$/.test(value) || !Number.isSafeInteger(Number(value))) {
+        // Fallback for responses without pagination headers
+        return response.data?.length || 0;
+      }
+      return Number(value);
+    });
+
+    return {
+      entries: response.data || [],
+      totalCount: totalCount || (response.data?.length || 0),
+      totalPages: totalPages || 1,
+    };
   }
 
   async getContestById(contestId: string): Promise<Contest | null> {
@@ -110,6 +132,34 @@ class ContestApiService {
       { timeout: 20_000 },
     );
     return response.data;
+  }
+
+  async runCodeSolution(
+    code: string,
+    language: string,
+    stdin: string,
+  ): Promise<RunCodeResponse> {
+    const response = await this.axiosInstance.post<RunCodeResponse>(
+      '/submission/run',
+      {
+        code,
+        language,
+        stdin,
+      },
+      { timeout: 20_000 },
+    );
+    const result = response.data;
+    if (
+      typeof result !== 'object' || result === null ||
+      !['accepted', 'wrong_answer', 'tle', 'failed_to_process', 'rte', 'judge_error'].includes(result.status) ||
+      [result.stdout, result.stderr, result.compile_output].some((value) => typeof value !== 'string') ||
+      [result.runtime, result.memory].some((value) => (
+        typeof value !== 'number' || !Number.isFinite(value) || value < 0
+      ))
+    ) {
+      throw new Error('Code execution returned an invalid response.');
+    }
+    return result;
   }
 
   async submitCodeSolution(
@@ -339,3 +389,4 @@ export interface ApiError {
 
 export const contestApi = new ContestApiService();
 export type { RunResponse };
+export type RunCodeResponse = RunResponse;
