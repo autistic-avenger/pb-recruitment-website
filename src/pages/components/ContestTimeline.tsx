@@ -149,7 +149,12 @@ const ContestTimeline: React.FC<ContestTimelineProps> = ({ contest }) => {
       }
     };
 
+  const auth = getAuth();
+  const user = auth.currentUser;
   const isContestEnded = Date.now() > contest.end_time;
+  const isSubmittedEarly = Boolean(
+    user?.uid && localStorage.getItem(`contest_submitted_${contest.id}_${user.uid}`)
+  );
 
   const handleStartContest = () => {
     if (isContestEnded) {
@@ -229,28 +234,41 @@ const ContestTimeline: React.FC<ContestTimelineProps> = ({ contest }) => {
               </span>
             </div>
             <p className="text-gray-300 mb-6">
-              {isContestEnded
+              {isSubmittedEarly
+                ? "You have already completed and submitted your test for this contest."
+                : isContestEnded
                 ? "This contest has ended. Check out the leaderboard to see final rankings!"
                 : contest.isRegistrationOpen()
                 ? "Register now and secure your spot in this exciting contest!"
                 : "Registration for this contest has closed."}
             </p>
             <motion.button
-              whileHover={contest.isRegistrationOpen() || contestStarted ? { scale: 1.05 } : {}}
-              whileTap={contest.isRegistrationOpen() || contestStarted ? { scale: 0.95 } : {}}
-              onClick={contestStarted ? handleStartContest : handleRegister}
-              disabled={(!contest.isRegistrationOpen() && !contestStarted) || (isRegistered && !contestStarted)}
+              whileHover={!isSubmittedEarly && (contest.isRegistrationOpen() || contestStarted) ? { scale: 1.05 } : {}}
+              whileTap={!isSubmittedEarly && (contest.isRegistrationOpen() || contestStarted) ? { scale: 0.95 } : {}}
+              onClick={
+                isSubmittedEarly || isContestEnded
+                  ? () => navigate(`/contests/${contest.id}/leaderboard`)
+                  : contestStarted
+                  ? handleStartContest
+                  : handleRegister
+              }
+              disabled={
+                (!contest.isRegistrationOpen() && !contestStarted && !isSubmittedEarly && !isContestEnded) ||
+                (isRegistered && !contestStarted && !isSubmittedEarly && !isContestEnded)
+              }
               className={`w-full py-3 px-6 rounded-lg font-bold text-lg transition-all flex items-center justify-center gap-2
                 ${
-                  (!contest.isRegistrationOpen() && !contestStarted) || (isRegistered && !contestStarted)
+                  isSubmittedEarly
+                    ? "bg-gray-800 text-green-400 border border-green-500/30 hover:bg-gray-750"
+                    : (!contest.isRegistrationOpen() && !contestStarted && !isContestEnded) || (isRegistered && !contestStarted && !isContestEnded)
                     ? "bg-gray-700 text-gray-400 cursor-not-allowed"
-                    : contestStarted
-                    ? "bg-green text-black hover:bg-green-600"
                     : "bg-green text-black hover:bg-green-600"
                 }
               `}
             >
-              {isContestEnded
+              {isSubmittedEarly
+                ? "View Leaderboard"
+                : isContestEnded
                 ? "View Leaderboard"
                 : !contest.isRegistrationOpen() && !contestStarted
                 ? "Registration Closed"
@@ -260,7 +278,7 @@ const ContestTimeline: React.FC<ContestTimelineProps> = ({ contest }) => {
                 ? "Already Registered"
                 : "Register"
               }
-              {(contest.isRegistrationOpen() || contestStarted) && <ChevronRight size={20} />}
+              <ChevronRight size={20} />
             </motion.button>
             {contest.isRegistrationOpen() && !isRegistered && (
               <p className="text-xs text-gray-400 mt-4 text-center">

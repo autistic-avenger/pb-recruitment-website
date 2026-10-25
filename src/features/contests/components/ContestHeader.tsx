@@ -1,15 +1,17 @@
+import { LogOut } from 'lucide-react';
+
 interface ContestHeaderProps {
   timeRemaining: number;
   progress: number;
   contestName?: string;
-  onExit?: () => void;
+  onSubmitContest?: () => void;
 }
 
 export const ContestHeader = ({ 
   timeRemaining,
   progress,
   contestName = 'Point Blank Recruitment Test 2025',
-  onExit,
+  onSubmitContest,
 }: ContestHeaderProps) => {
 
   const formatTime = (seconds: number) => {
@@ -25,7 +27,7 @@ export const ContestHeader = ({
   };
 
   const getTimeColor = () => {
-    if (timeRemaining <= 300) return 'text-red-400'; //5 minutes
+    if (timeRemaining <= 300) return 'text-red-400'; // 5 minutes
     if (timeRemaining <= 900) return 'text-yellow-400'; // 15 minutes
     return 'text-green-400';
   };
@@ -37,17 +39,19 @@ export const ContestHeader = ({
           <h1 className="text-xl font-bold text-white font-['DM_Sans'] flex items-center h-full">{contestName}</h1>
           <div className="flex items-center gap-4">
             <div className="text-right flex flex-col justify-center">
-              <div className="text-s text-gray-400 font-['DM_Sans']">Time remaining</div>
+              <div className="text-xs text-gray-400 font-['DM_Sans']">Time remaining</div>
               <div className={`text-xl font-['DM_Sans'] font-mono ${getTimeColor()}`}>
                 {timeRemaining > 0 ? formatTime(timeRemaining) : 'Time Up!'}
               </div>
             </div>
-            {onExit && (
+            {onSubmitContest && (
               <button
-                onClick={onExit}
-                className="text-xs px-3 py-1.5 rounded border border-gray-600 text-gray-300 hover:text-white hover:border-red-500 hover:bg-red-500/20 transition-all font-['DM_Sans'] font-medium"
+                type="button"
+                onClick={onSubmitContest}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-red-600/90 hover:bg-red-600 text-white font-['DM_Sans'] text-xs font-semibold tracking-wide transition-all shadow-md shadow-red-600/20 hover:shadow-red-600/40"
               >
-                Exit Contest
+                <LogOut size={14} />
+                End Contest
               </button>
             )}
           </div>

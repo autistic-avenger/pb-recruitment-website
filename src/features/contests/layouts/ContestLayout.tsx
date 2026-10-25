@@ -2,14 +2,22 @@ import { Outlet, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import { toast } from 'react-toastify';
 import { ContestHeader } from '../components/ContestHeader';
+import { EndContestModal } from '../components/EndContestModal';
 import { useContest } from '../hooks/useContest';
+import { useAuth } from '@/lib/AuthContext';
+
+export interface ContestOutletContext {
+  openEndContestModal: () => void;
+}
 
 export const ContestLayout = () => {
   const { contestId } = useParams<{ contestId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [progress, setProgress] = useState(0);
+  const [isEndModalOpen, setIsEndModalOpen] = useState(false);
   const hasExitedRef = useRef(false);
 
   const { contest, isLoading: isContestLoading } = useContest(contestId || '');
@@ -21,6 +29,21 @@ export const ContestLayout = () => {
 
   useEffect(() => {
     if (!contest) return;
+
+    // Check if the user already submitted this contest early
+    const isSubmittedEarly = Boolean(
+      user?.uid && localStorage.getItem(`contest_submitted_${contestId}_${user.uid}`)
+    );
+
+    if (isSubmittedEarly && !hasExitedRef.current && !isLeaderboardPage) {
+      hasExitedRef.current = true;
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      }
+      toast.info("You have already submitted this contest.");
+      navigate(`/contest/${contestId}`, { replace: true });
+      return;
+    }
 
     const checkAndExitIfEnded = () => {
       const now = Date.now();
@@ -76,15 +99,22 @@ export const ContestLayout = () => {
     const interval = setInterval(checkAndExitIfEnded, 1000);
 
     return () => clearInterval(interval);
-  }, [contest, contestId, isLeaderboardPage, navigate]);
+  }, [contest, contestId, isLeaderboardPage, navigate, user?.uid]);
 
-  const handleManualExit = () => {
-    if (window.confirm("Are you sure you want to exit the contest?")) {
-      if (document.fullscreenElement) {
-        document.exitFullscreen().catch(() => {});
-      }
-      navigate(`/contest/${contestId}`, { replace: true });
+  const handleOpenEndModal = () => {
+    setIsEndModalOpen(true);
+  };
+
+  const handleConfirmEndContest = () => {
+    setIsEndModalOpen(false);
+    if (user?.uid && contestId) {
+      localStorage.setItem(`contest_submitted_${contestId}_${user.uid}`, 'true');
     }
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+    toast.success("Contest submitted successfully! Thank you for participating.");
+    navigate(`/contest/${contestId}`, { replace: true });
   };
 
   if (!contestId) {
@@ -123,12 +153,19 @@ export const ContestLayout = () => {
         timeRemaining={timeRemaining}
         progress={progress}
         contestName={contest?.name || 'Contest'}
-        onExit={!isLeaderboardPage ? handleManualExit : undefined}
+        onSubmitContest={!isLeaderboardPage ? handleOpenEndModal : undefined}
       />
       
       <div className="flex-1 overflow-hidden">
-        <Outlet />
+        <Outlet context={{ openEndContestModal: handleOpenEndModal } satisfies ContestOutletContext} />
       </div>
+
+      <EndContestModal
+        isOpen={isEndModalOpen}
+        onClose={() => setIsEndModalOpen(false)}
+        onConfirm={handleConfirmEndContest}
+        contestName={contest?.name}
+      />
     </div>
   );
 };
