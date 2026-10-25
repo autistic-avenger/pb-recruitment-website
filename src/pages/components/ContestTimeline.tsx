@@ -139,13 +139,19 @@ const ContestTimeline: React.FC<ContestTimelineProps> = ({ contest }) => {
       }
     };
 
-  const handleStartContest = () => {
-  // Request fullscreen 
-  document.documentElement.requestFullscreen().catch(() => {});
+  const isContestEnded = Date.now() > contest.end_time;
 
-  // Redirect to problems page
-  navigate(`/contests/${contest.id}/problems`);
-};
+  const handleStartContest = () => {
+    if (isContestEnded) {
+      navigate(`/contests/${contest.id}/leaderboard`);
+      return;
+    }
+    // Request fullscreen 
+    document.documentElement.requestFullscreen().catch(() => {});
+
+    // Redirect to problems page
+    navigate(`/contests/${contest.id}/problems`);
+  };
   const closePopup = () => {
     setPopup(prev => ({ ...prev, isOpen: false }));
   };
@@ -207,7 +213,9 @@ const ContestTimeline: React.FC<ContestTimelineProps> = ({ contest }) => {
           >
             <h2 className="text-2xl font-anton text-beige mb-4">Ready to compete?</h2>
             <p className="text-gray-300 mb-6">
-              {contest.isRegistrationOpen()
+              {isContestEnded
+                ? "This contest has ended. Check out the leaderboard to see final rankings!"
+                : contest.isRegistrationOpen()
                 ? "Register now and secure your spot in this exciting contest!"
                 : "Registration for this contest has closed."}
             </p>
@@ -226,7 +234,9 @@ const ContestTimeline: React.FC<ContestTimelineProps> = ({ contest }) => {
                 }
               `}
             >
-              {!contest.isRegistrationOpen() && !contestStarted
+              {isContestEnded
+                ? "View Leaderboard"
+                : !contest.isRegistrationOpen() && !contestStarted
                 ? "Registration Closed"
                 : contestStarted
                 ? "Start Contest"
