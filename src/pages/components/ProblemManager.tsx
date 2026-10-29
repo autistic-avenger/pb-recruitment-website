@@ -509,6 +509,7 @@ const ProblemManager: React.FC<ProblemManagerProps> = ({
                         value={formData.timeLimit}
                         onChange={handleInputChange}
                         min="1"
+                        max="10000"
                         placeholder="1000"
                         className="w-full rounded border border-gray-700 bg-gray-800 px-4 py-2 text-gray-300 focus:border-green-500 focus:outline-none"
                         required
@@ -522,6 +523,7 @@ const ProblemManager: React.FC<ProblemManagerProps> = ({
                         value={formData.memoryLimit}
                         onChange={handleInputChange}
                         min="1"
+                        max="500"
                         placeholder="256"
                         className="w-full rounded border border-gray-700 bg-gray-800 px-4 py-2 text-gray-300 focus:border-green-500 focus:outline-none"
                         required
