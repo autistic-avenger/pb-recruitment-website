@@ -50,6 +50,8 @@ export const ContestLayout = () => {
       return;
     }
 
+    let cancelled = false;
+
     const checkAndExitIfEnded = async () => {
       const now = Date.now();
       const endTime = contest.end_time;
@@ -67,6 +69,8 @@ export const ContestLayout = () => {
           isRefetchingRef.current = true;
           const updatedContest = await refetch();
           isRefetchingRef.current = false;
+          // The user may have left (e.g. to the leaderboard) while the refetch was in flight
+          if (cancelled) return true;
           if (updatedContest && Date.now() < updatedContest.end_time) {
             return false;
           }
@@ -117,7 +121,10 @@ export const ContestLayout = () => {
 
     const interval = setInterval(checkAndExitIfEnded, 1000);
 
-    return () => clearInterval(interval);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, [contest, contestId, isLeaderboardPage, navigate, refetch, user?.uid]);
 
   const handleOpenEndModal = () => {
