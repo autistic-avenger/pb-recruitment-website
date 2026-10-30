@@ -11,7 +11,7 @@ import Footer from "./components/footer";
 const renderMarkdown = (markdown: string): string => {
   if (!markdown) return "";
   
-  let html = markdown
+  const html = markdown
     // Headers
     .replace(/^### (.*$)/gim, '<h3 class="text-lg font-bold text-green-400 mt-4 mb-2">$1</h3>')
     .replace(/^## (.*$)/gim, '<h2 class="text-xl font-bold text-green-400 mt-5 mb-3">$1</h2>')

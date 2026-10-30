@@ -52,11 +52,6 @@ export const useLeaderboard = (contestId: string, refreshIntervalMs: number = 30
         setContestError("Contest not found");
       } else {
         setContestError(null);
-        if (data.start_time && Date.now() < data.start_time) {
-          setHasStarted(false);
-        } else {
-          setHasStarted(true);
-        }
       }
     } catch (err) {
       if (gen !== metadataGenRef.current || prevContestIdRef.current !== currentId) return;
@@ -129,12 +124,7 @@ export const useLeaderboard = (contestId: string, refreshIntervalMs: number = 30
         if (axios.isAxiosError(err)) {
           const errorResponse = err.response?.data?.error;
           const status = err.response?.status;
-          if (
-            status === 403 &&
-            (errorResponse === "contest has not started yet" ||
-              errorResponse === "contest is not running" ||
-              (typeof errorResponse === "string" && errorResponse.toLowerCase().includes("not started")))
-          ) {
+          if (status === 403 && errorResponse === "contest has not started yet") {
             isNotStarted = true;
             setHasStarted(false);
             setLeaderboard([]);

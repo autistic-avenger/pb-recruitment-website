@@ -5,6 +5,7 @@ import { ContestHeader } from '../components/ContestHeader';
 import { EndContestModal } from '../components/EndContestModal';
 import { useContest } from '../hooks/useContest';
 import { useAuth } from '@/lib/AuthContext';
+import { getContestSubmitted, setContestSubmitted } from '@/lib/contestStorage';
 
 export interface ContestOutletContext {
   openEndContestModal: () => void;
@@ -19,28 +20,31 @@ export const ContestLayout = () => {
   const [progress, setProgress] = useState(0);
   const [isEndModalOpen, setIsEndModalOpen] = useState(false);
   const hasExitedRef = useRef(false);
+  const wasLiveRef = useRef(false);
 
   const { contest, isLoading: isContestLoading } = useContest(contestId || '');
   const isLeaderboardPage = location.pathname.endsWith('/leaderboard');
 
   useEffect(() => {
     hasExitedRef.current = false;
+    wasLiveRef.current = false;
   }, [contestId]);
 
   useEffect(() => {
     if (!contest) return;
 
-    // Check if the user already submitted this contest early
+    // Check if the user already ended this contest early on this device
+    // Only redirect if the contest is still currently running
     const isSubmittedEarly = Boolean(
-      user?.uid && localStorage.getItem(`contest_submitted_${contestId}_${user.uid}`)
+      user?.uid && contestId && getContestSubmitted(contestId, user.uid)
     );
 
-    if (isSubmittedEarly && !hasExitedRef.current && !isLeaderboardPage) {
+    if (isSubmittedEarly && !hasExitedRef.current && !isLeaderboardPage && Date.now() < contest.end_time) {
       hasExitedRef.current = true;
       if (document.fullscreenElement) {
         document.exitFullscreen().catch(() => {});
       }
-      toast.info("You have already submitted this contest.");
+      toast.info("You have already ended this contest on this device.");
       navigate(`/contest/${contestId}`, { replace: true });
       return;
     }
@@ -51,12 +55,16 @@ export const ContestLayout = () => {
       const startTime = contest.start_time;
       const totalDuration = endTime - startTime;
 
-      // If contest is over and user is in contest problems/testing area
+      if (now >= startTime && now < endTime) {
+        wasLiveRef.current = true;
+      }
+
+      // If contest is over and user was actively participating in it
       if (now >= endTime) {
         setTimeRemaining(0);
         setProgress(100);
 
-        if (!hasExitedRef.current && !isLeaderboardPage) {
+        if (wasLiveRef.current && !hasExitedRef.current && !isLeaderboardPage) {
           hasExitedRef.current = true;
           if (document.fullscreenElement) {
             document.exitFullscreen().catch(() => {});
@@ -108,12 +116,12 @@ export const ContestLayout = () => {
   const handleConfirmEndContest = () => {
     setIsEndModalOpen(false);
     if (user?.uid && contestId) {
-      localStorage.setItem(`contest_submitted_${contestId}_${user.uid}`, 'true');
+      setContestSubmitted(contestId, user.uid);
     }
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(() => {});
     }
-    toast.success("Contest submitted successfully! Thank you for participating.");
+    toast.info("Contest ended on this device. Only your submitted solutions will be scored.");
     navigate(`/contest/${contestId}`, { replace: true });
   };
 

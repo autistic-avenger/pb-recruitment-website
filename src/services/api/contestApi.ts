@@ -90,15 +90,15 @@ class ContestApiService {
     const [totalCount, totalPages] = ['x-total-count', 'x-total-pages'].map((header) => {
       const value = response.headers[header];
       if (typeof value !== 'string' || !/^\d+$/.test(value) || !Number.isSafeInteger(Number(value))) {
-        return response.data?.length || 0;
+        throw new Error('Missing or invalid leaderboard pagination headers. Please try again.');
       }
       return Number(value);
     });
 
     return {
       entries: response.data || [],
-      totalCount: totalCount || (response.data?.length || 0),
-      totalPages: totalPages || 1,
+      totalCount,
+      totalPages,
     };
   }
 
@@ -112,10 +112,6 @@ class ContestApiService {
       }
       throw error;
     }
-  }
-
-  async runCode(language: string, code: string, stdin: string = ''): Promise<RunResponse> {
-    return this.runCodeSolution(code, language, stdin);
   }
 
   async runCodeSolution(

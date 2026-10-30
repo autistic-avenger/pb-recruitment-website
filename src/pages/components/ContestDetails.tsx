@@ -23,9 +23,7 @@ const ContestDetails: React.FC<ContestDetailsProps> = ({ contest }) => {
     },
   };
 
-  const eligibleYearsText = typeof contest.formatEligibleYears === "function"
-    ? contest.formatEligibleYears()
-    : "All Years";
+  const eligibleYearsText = contest.formatEligibleYears();
 
   return (
     <section className="w-full px-4 md:px-8 py-12">

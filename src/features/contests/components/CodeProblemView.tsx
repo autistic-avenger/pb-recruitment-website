@@ -3,7 +3,7 @@ import Editor from '@monaco-editor/react';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Play, Send, Copy, Check, Clock, Cpu } from 'lucide-react';
-import { contestApi, type RunResponse, type RunCodeResponse } from '@/services/api/contestApi';
+import { contestApi, type RunCodeResponse } from '@/services/api/contestApi';
 import type { Problem } from '../problem.types';
 
 interface CodeProblemViewProps {
@@ -104,7 +104,7 @@ export const CodeProblemView = ({ problem, onSubmit, onRun }: CodeProblemViewPro
     () => ({ ...DEFAULT_CODE_TEMPLATES }),
   );
   const [customInput, setCustomInput] = useState(() => problem.examples?.[0]?.input || '');
-  const [runResult, setRunResult] = useState<RunResponse | null>(null);
+  const [runResult, setRunResult] = useState<RunCodeResponse | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
@@ -138,15 +138,6 @@ export const CodeProblemView = ({ problem, onSubmit, onRun }: CodeProblemViewPro
     }));
   }, [invalidateRun, selectedLanguage]);
 
-  useEffect(() => {
-    if (problem.examples && problem.examples.length > 0) {
-      setCustomInput(problem.examples[0].input);
-    } else {
-      setCustomInput('');
-    }
-    invalidateRun();
-  }, [problem.id, invalidateRun]);
-
   const handleRunCode = useCallback(async () => {
     if (!code.trim()) {
       setActiveTab('output');
@@ -161,12 +152,10 @@ export const CodeProblemView = ({ problem, onSubmit, onRun }: CodeProblemViewPro
     setRunResult(null);
     const inputRevision = inputRevisionRef.current;
 
-    const inputToUse = customInput !== '' ? customInput : (problem.examples?.[0]?.input || '');
-
     try {
       const result = onRun
-        ? await onRun(code, selectedLanguage, inputToUse)
-        : await contestApi.runCode(selectedLanguage, code, inputToUse);
+        ? await onRun(code, selectedLanguage, customInput)
+        : await contestApi.runCodeSolution(code, selectedLanguage, customInput);
 
       if (inputRevision !== inputRevisionRef.current) return;
       setRunResult(result);
@@ -175,11 +164,9 @@ export const CodeProblemView = ({ problem, onSubmit, onRun }: CodeProblemViewPro
       console.error('Run code error:', err);
       setRunError(getRunErrorMessage(err));
     } finally {
-      if (inputRevision === inputRevisionRef.current) {
-        setIsRunning(false);
-      }
+      setIsRunning(false);
     }
-  }, [code, selectedLanguage, customInput, onRun, problem.examples]);
+  }, [code, selectedLanguage, customInput, onRun]);
 
   const handleSubmit = async () => {
     if (!onSubmit) {
@@ -567,7 +554,10 @@ export const CodeProblemView = ({ problem, onSubmit, onRun }: CodeProblemViewPro
                           <button
                             key={idx}
                             type="button"
-                            onClick={() => setCustomInput(ex.input)}
+                            onClick={() => {
+                              invalidateRun();
+                              setCustomInput(ex.input);
+                            }}
                             className="px-1.5 py-0.5 text-[10px] rounded bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 font-mono transition-colors"
                             title={`Load sample ${idx + 1}`}
                           >
@@ -604,7 +594,7 @@ export const CodeProblemView = ({ problem, onSubmit, onRun }: CodeProblemViewPro
                         {runResult.memory !== undefined && (
                           <span className="flex items-center gap-1 text-[11px]">
                             <Cpu className="w-3 h-3 text-gray-400" />
-                            {runResult.memory} KB
+                            {runResult.memory} KiB
                           </span>
                         )}
                         {getStatusBadge(runResult.status)}

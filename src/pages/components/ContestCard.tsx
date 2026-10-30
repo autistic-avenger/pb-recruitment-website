@@ -11,9 +11,7 @@ interface ContestCardProps {
 
 const ContestCard: React.FC<ContestCardProps> = ({ contest, onClick }) => {
   const navigate = useNavigate();
-  const eligibleYearsText = typeof contest.formatEligibleYears === "function"
-    ? contest.formatEligibleYears()
-    : "All Years";
+  const eligibleYearsText = contest.formatEligibleYears();
 
   return (
     <motion.div

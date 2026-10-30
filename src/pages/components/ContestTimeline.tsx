@@ -5,7 +5,8 @@ import { ChevronRight } from "lucide-react";
 import type { Contest } from "@/models/contest";
 import { contestApi } from "@/services/api/contestApi";
 import { Popup } from "@/components/ui/popup";
-import { getAuth } from "firebase/auth";
+import { useAuth } from "@/lib/AuthContext";
+import { getContestSubmitted } from "@/lib/contestStorage";
 
 interface ContestTimelineProps {
   contest: Contest;
@@ -13,6 +14,7 @@ interface ContestTimelineProps {
 
 const ContestTimeline: React.FC<ContestTimelineProps> = ({ contest }) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [isRegistered, setIsRegistered] = React.useState<boolean>(
     contest.is_registered ?? false
   );
@@ -49,45 +51,40 @@ const ContestTimeline: React.FC<ContestTimelineProps> = ({ contest }) => {
   }, [contest.id, contest.is_registered]);
 
   useEffect(() => {
-  if (isRegistered) return;
+    if (!isRegistered) return;
 
-  const updateCountdown = () => {
-    const now = new Date().getTime();
-    const distance = new Date(contest.start_time).getTime() - now;
+    const updateCountdown = () => {
+      const now = new Date().getTime();
+      const distance = new Date(contest.start_time).getTime() - now;
 
-    if (distance < 0) {
-      setContestStarted(true);
-      setCountdown("");
-      return;
-    }
+      if (distance < 0) {
+        setContestStarted(true);
+        setCountdown("");
+        return;
+      }
 
-    const days = Math.floor(distance / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+      const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((distance % (1000 * 60)) / 1000);
 
-    setCountdown(
-      `${days}d ${hours.toString().padStart(2, "0")}:${minutes
-        .toString()
-        .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`
-    );
-    setContestStarted(false);
-  };
+      setCountdown(
+        `${days}d ${hours.toString().padStart(2, "0")}:${minutes
+          .toString()
+          .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`
+      );
+      setContestStarted(false);
+    };
 
-  updateCountdown();
-  const interval = setInterval(updateCountdown, 1000);
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
 
-  return () => clearInterval(interval);
+    return () => clearInterval(interval);
   }, [isRegistered, contest.start_time]);
 
-  const eligibleYearsText = typeof contest.formatEligibleYears === "function"
-    ? contest.formatEligibleYears()
-    : "All Years";
+  const eligibleYearsText = contest.formatEligibleYears();
 
   const handleRegister = async () => {
-    const auth = getAuth();
-    const user = auth.currentUser;
-
     if (!user) {
       navigate("/login");
       return;
@@ -101,59 +98,58 @@ const ContestTimeline: React.FC<ContestTimelineProps> = ({ contest }) => {
         type: "success",
         message: "Successfully registered for the contest!",
       });
-      } catch (err: any) {
-        let message = "Failed to register. Please try again.";
+    } catch (err: unknown) {
+      let message = "Failed to register. Please try again.";
 
-        if (err?.response?.status) {
-          switch (err.response.status) {
-            case 403: {
-              const errText = (err.response.data?.error || "").toLowerCase();
-              if (
-                errText === "invalid year" ||
-                errText.includes("year") ||
-                errText.includes("eligible")
-              ) {
-                message = `You are not eligible for this contest based on your academic year. This contest is only open to students in ${eligibleYearsText}.`;
-              } else {
-                message =
-                  err.response.data?.error ||
-                  "Registration is closed or you are not eligible.";
-              }
-              break;
-            }
-
-            case 404:
+      const axiosErr = err as { response?: { status?: number; data?: { error?: string } } };
+      if (axiosErr?.response?.status) {
+        switch (axiosErr.response.status) {
+          case 403: {
+            const errText = (axiosErr.response.data?.error || "").toLowerCase();
+            if (
+              errText === "invalid year" ||
+              errText.includes("year") ||
+              errText.includes("eligible")
+            ) {
+              message = `You are not eligible for this contest based on your academic year. This contest is only open to students in ${eligibleYearsText}.`;
+            } else {
               message =
-                err.response.data?.error || "Contest or user not found.";
-              break;
-
-            case 409:
-              message = "You are already registered.";
-              setIsRegistered(true);
-              break;
-
-            case 500:
-              message = "Server error. Please try again later.";
-              break;
-
-            default:
-              message = "Unexpected error occurred.";
+                axiosErr.response.data?.error ||
+                "Registration is closed or you are not eligible.";
+            }
+            break;
           }
+
+          case 404:
+            message =
+              axiosErr.response.data?.error || "Contest or user not found.";
+            break;
+
+          case 409:
+            message = "You are already registered.";
+            setIsRegistered(true);
+            break;
+
+          case 500:
+            message = "Server error. Please try again later.";
+            break;
+
+          default:
+            message = "Unexpected error occurred.";
         }
-
-        setPopup({
-          isOpen: true,
-          type: "error",
-          message,
-        });
       }
-    };
 
-  const auth = getAuth();
-  const user = auth.currentUser;
+      setPopup({
+        isOpen: true,
+        type: "error",
+        message,
+      });
+    }
+  };
+
   const isContestEnded = Date.now() > contest.end_time;
   const isSubmittedEarly = Boolean(
-    user?.uid && localStorage.getItem(`contest_submitted_${contest.id}_${user.uid}`)
+    user?.uid && getContestSubmitted(contest.id, user.uid)
   );
 
   const handleStartContest = () => {
@@ -203,7 +199,6 @@ const ContestTimeline: React.FC<ContestTimelineProps> = ({ contest }) => {
                     <div className="space-y-4 relative">
                     {/* Background vertical line */}
                     <div className="absolute left-1.5 top-0 bottom-0 w-1 bg-gray-600" style={{ height: "100%" }} />
-
                     {timelineEvents.map((event, index) => (
                         <div key={index} className="flex gap-4 items-start relative z-10">
                         <div className="flex flex-col items-center flex-shrink-0">

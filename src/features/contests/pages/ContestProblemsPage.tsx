@@ -45,10 +45,10 @@ export const ContestProblemsPage = () => {
         <div className="mt-10 border-t border-gray-800 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
             <p className="text-base font-semibold text-white font-['DM_Sans']">
-              Ready to submit your contest?
+              Ready to end your contest session?
             </p>
             <p className="text-xs text-gray-400 font-['DM_Sans'] mt-0.5">
-              All your submitted solutions have been evaluated and saved.
+              Only solutions you have submitted will count towards your score.
             </p>
           </div>
           <button
@@ -56,7 +56,7 @@ export const ContestProblemsPage = () => {
             onClick={openEndContestModal}
             className="w-full sm:w-auto px-6 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold text-sm transition-all shadow-lg shadow-red-600/20 font-['DM_Sans'] flex items-center justify-center gap-2"
           >
-            End & Submit Contest
+            End Contest
           </button>
         </div>
       )}

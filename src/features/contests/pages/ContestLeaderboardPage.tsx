@@ -28,7 +28,7 @@ export const ContestLeaderboardPage = () => {
     if (
       !isLoading &&
       contestId &&
-      (!hasStarted || (contest && Date.now() < contest.start_time)) &&
+      !hasStarted &&
       !hasRedirectedRef.current
     ) {
       hasRedirectedRef.current = true;
@@ -61,7 +61,7 @@ export const ContestLeaderboardPage = () => {
     );
   }
 
-  if (!hasStarted || (contest && Date.now() < contest.start_time)) {
+  if (!hasStarted) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="text-center">
