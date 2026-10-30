@@ -8,7 +8,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { getContestSubmitted, setContestSubmitted } from '@/lib/contestStorage';
 
 export interface ContestOutletContext {
-  openEndContestModal: () => void;
+  openEndContestModal?: () => void;
 }
 
 export const ContestLayout = () => {
@@ -21,8 +21,9 @@ export const ContestLayout = () => {
   const [isEndModalOpen, setIsEndModalOpen] = useState(false);
   const hasExitedRef = useRef(false);
   const wasLiveRef = useRef(false);
+  const isRefetchingRef = useRef(false);
 
-  const { contest, isLoading: isContestLoading } = useContest(contestId || '');
+  const { contest, isLoading: isContestLoading, refetch } = useContest(contestId || '');
   const isLeaderboardPage = location.pathname.endsWith('/leaderboard');
 
   useEffect(() => {
@@ -49,7 +50,7 @@ export const ContestLayout = () => {
       return;
     }
 
-    const checkAndExitIfEnded = () => {
+    const checkAndExitIfEnded = async () => {
       const now = Date.now();
       const endTime = contest.end_time;
       const startTime = contest.start_time;
@@ -61,17 +62,28 @@ export const ContestLayout = () => {
 
       // If contest is over and user was actively participating in it
       if (now >= endTime) {
-        setTimeRemaining(0);
-        setProgress(100);
-
         if (wasLiveRef.current && !hasExitedRef.current && !isLeaderboardPage) {
+          if (isRefetchingRef.current) return true;
+          isRefetchingRef.current = true;
+          const updatedContest = await refetch();
+          isRefetchingRef.current = false;
+          if (updatedContest && Date.now() < updatedContest.end_time) {
+            return false;
+          }
+
           hasExitedRef.current = true;
+          setTimeRemaining(0);
+          setProgress(100);
           if (document.fullscreenElement) {
             document.exitFullscreen().catch(() => {});
           }
           toast.info("Time is up! The contest has ended.");
           navigate(`/contest/${contestId}`, { replace: true });
+          return true;
         }
+
+        setTimeRemaining(0);
+        setProgress(100);
         return true;
       }
 
@@ -101,13 +113,12 @@ export const ContestLayout = () => {
     };
 
     // Run check immediately
-    const exited = checkAndExitIfEnded();
-    if (exited) return;
+    checkAndExitIfEnded();
 
     const interval = setInterval(checkAndExitIfEnded, 1000);
 
     return () => clearInterval(interval);
-  }, [contest, contestId, isLeaderboardPage, navigate, user?.uid]);
+  }, [contest, contestId, isLeaderboardPage, navigate, refetch, user?.uid]);
 
   const handleOpenEndModal = () => {
     setIsEndModalOpen(true);
@@ -155,6 +166,8 @@ export const ContestLayout = () => {
     );
   }
 
+  const canEnd = !isLeaderboardPage && timeRemaining > 0;
+
   return (
     <div className="w-full bg-black min-h-screen flex flex-col">
       <ContestHeader 
@@ -162,11 +175,11 @@ export const ContestLayout = () => {
         progress={progress}
         contestName={contest?.name || 'Contest'}
         contestId={contestId}
-        onSubmitContest={!isLeaderboardPage ? handleOpenEndModal : undefined}
+        onSubmitContest={canEnd ? handleOpenEndModal : undefined}
       />
       
       <div className="flex-1 overflow-hidden">
-        <Outlet context={{ openEndContestModal: handleOpenEndModal } satisfies ContestOutletContext} />
+        <Outlet context={{ openEndContestModal: canEnd ? handleOpenEndModal : undefined } satisfies ContestOutletContext} />
       </div>
 
       <EndContestModal

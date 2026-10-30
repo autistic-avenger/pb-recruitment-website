@@ -3,13 +3,14 @@ import Editor from '@monaco-editor/react';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Play, Send, Copy, Check, Clock, Cpu } from 'lucide-react';
-import { contestApi, type RunCodeResponse } from '@/services/api/contestApi';
+import type { RunCodeResponse } from '@/services/api/contestApi';
+import { formatVerdict, getVerdictClasses } from './SubmissionPanel';
 import type { Problem } from '../problem.types';
 
 interface CodeProblemViewProps {
   problem: Problem;
   onSubmit?: (code: string, language: string) => Promise<void>;
-  onRun?: (code: string, language: string, stdin: string) => Promise<RunCodeResponse>;
+  onRun: (code: string, language: string, stdin: string) => Promise<RunCodeResponse>;
 }
 
 const SUPPORTED_LANGUAGES = [
@@ -53,40 +54,10 @@ int main() {
 }`,
 };
 
-const getStatusBadge = (status: string) => {
-  const normalized = status.toLowerCase();
-  switch (normalized) {
-    case 'accepted':
-    case 'pass':
-    case 'passed':
-      return <span className="px-2 py-0.5 rounded text-xs font-semibold bg-green-500/20 text-green-400 border border-green-500/30">Accepted</span>;
-    case 'wrong_answer':
-      return <span className="px-2 py-0.5 rounded text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30">Wrong Answer</span>;
-    case 'tle':
-    case 'time_limit_exceeded':
-      return <span className="px-2 py-0.5 rounded text-xs font-semibold bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">Time Limit Exceeded</span>;
-    case 'mle':
-    case 'memory_limit_exceeded':
-      return <span className="px-2 py-0.5 rounded text-xs font-semibold bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">Memory Limit Exceeded</span>;
-    case 'compilation_error':
-    case 'failed_to_process':
-      return <span className="px-2 py-0.5 rounded text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30">Compilation Error</span>;
-    case 'rte':
-    case 'runtime_error':
-      return <span className="px-2 py-0.5 rounded text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30">Runtime Error</span>;
-    default:
-      return <span className="px-2 py-0.5 rounded text-xs font-semibold bg-gray-700 text-gray-300 capitalize">{status.replace(/_/g, ' ')}</span>;
-  }
-};
-
 const getRunErrorMessage = (error: unknown): string => {
   if (axios.isAxiosError(error)) {
     if (error.response?.status === 404) return 'Code execution service is currently disabled on the server.';
     if (error.response?.status === 401) return 'You must be logged in to execute code.';
-    if (error.response?.status === 429) {
-      const data = error.response.data as Record<string, unknown> | undefined;
-      return typeof data?.error === 'string' ? data.error : 'Run capacity busy; wait 5 seconds before trying again.';
-    }
     const responseData: unknown = error.response?.data;
     if (typeof responseData === 'object' && responseData !== null) {
       const data = responseData as Record<string, unknown>;
@@ -153,9 +124,7 @@ export const CodeProblemView = ({ problem, onSubmit, onRun }: CodeProblemViewPro
     const inputRevision = inputRevisionRef.current;
 
     try {
-      const result = onRun
-        ? await onRun(code, selectedLanguage, customInput)
-        : await contestApi.runCodeSolution(code, selectedLanguage, customInput);
+      const result = await onRun(code, selectedLanguage, customInput);
 
       if (inputRevision !== inputRevisionRef.current) return;
       setRunResult(result);
@@ -585,19 +554,17 @@ export const CodeProblemView = ({ problem, onSubmit, onRun }: CodeProblemViewPro
                     </label>
                     {runResult && (
                       <div className="flex items-center gap-3 text-xs text-gray-400 font-mono">
-                        {runResult.runtime !== undefined && (
-                          <span className="flex items-center gap-1 text-[11px]">
-                            <Clock className="w-3 h-3 text-gray-400" />
-                            {runResult.runtime} ms
-                          </span>
-                        )}
-                        {runResult.memory !== undefined && (
-                          <span className="flex items-center gap-1 text-[11px]">
-                            <Cpu className="w-3 h-3 text-gray-400" />
-                            {runResult.memory} KiB
-                          </span>
-                        )}
-                        {getStatusBadge(runResult.status)}
+                        <span className="flex items-center gap-1 text-[11px]">
+                          <Clock className="w-3 h-3 text-gray-400" />
+                          {runResult.runtime} ms
+                        </span>
+                        <span className="flex items-center gap-1 text-[11px]">
+                          <Cpu className="w-3 h-3 text-gray-400" />
+                          {runResult.memory} KiB
+                        </span>
+                        <span className={`px-2 py-0.5 rounded text-xs font-semibold border ${getVerdictClasses(runResult.status)}`}>
+                          {formatVerdict(runResult.status)}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -650,7 +617,7 @@ export const CodeProblemView = ({ problem, onSubmit, onRun }: CodeProblemViewPro
                         </div>
                       ) : !runResult.compile_output && !runResult.stderr ? (
                         <div className="h-full flex items-center justify-center text-xs text-gray-500 font-mono italic">
-                          (Program finished with no output)
+                          (No output)
                         </div>
                       ) : null}
                     </div>

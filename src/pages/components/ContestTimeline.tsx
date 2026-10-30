@@ -153,10 +153,6 @@ const ContestTimeline: React.FC<ContestTimelineProps> = ({ contest }) => {
   );
 
   const handleStartContest = () => {
-    if (isContestEnded) {
-      navigate(`/contests/${contest.id}/leaderboard`);
-      return;
-    }
     // Request fullscreen 
     document.documentElement.requestFullscreen().catch(() => {});
 

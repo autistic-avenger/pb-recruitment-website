@@ -328,7 +328,6 @@ export interface RunCodeResponse {
   memory: number;
 }
 
-export type RunResponse = RunCodeResponse;
 
 export type SubmissionType = 'code' | 'mcq';
 

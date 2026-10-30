@@ -1,5 +1,4 @@
 export const getContestSubmitted = (contestId: string, userId: string): boolean => {
-  if (!contestId || !userId) return false;
   try {
     return localStorage.getItem(`contest_submitted_${contestId}_${userId}`) === 'true';
   } catch {
@@ -8,7 +7,6 @@ export const getContestSubmitted = (contestId: string, userId: string): boolean 
 };
 
 export const setContestSubmitted = (contestId: string, userId: string): void => {
-  if (!contestId || !userId) return;
   try {
     localStorage.setItem(`contest_submitted_${contestId}_${userId}`, 'true');
   } catch {
