@@ -43,9 +43,9 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const loadUserProfile = async (userId: string) => {
+  const loadUserProfile = async () => {
     try {
-      const profile = await fetchUserProfile(userId);
+      const profile = await fetchUserProfile();
       setUserProfile(profile);
     } catch (error) {
       console.error("Failed to load user profile:", error);
@@ -65,7 +65,7 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
         Sentry.setUser({
           id: firebaseUser.uid,
         });
-        await loadUserProfile(firebaseUser.uid);
+        await loadUserProfile();
       } else {
         Sentry.setUser(null);
         setUserProfile(null);
@@ -86,11 +86,13 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
 
   const refreshProfile = async () => {
     if (user) {
-      await loadUserProfile(user.uid);
+      await loadUserProfile();
     }
   };
 
   return <AuthContext.Provider value={{ user, userProfile, loading, logout, refreshProfile }}>{children}</AuthContext.Provider>;
 };
 
+// The context hook lives beside its provider to keep the context private.
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = (): AuthContextType => useContext(AuthContext);

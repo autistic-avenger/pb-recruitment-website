@@ -222,11 +222,15 @@ class ContestApiService {
     };
   }
 
-  async endContestSession(contestId: string, options?: { signal?: AbortSignal; timeoutMs?: number }): Promise<void> {
+  async endContestSession(
+    contestId: string,
+    options?: { signal?: AbortSignal; timeoutMs?: number; expectedUserId?: string }
+  ): Promise<void> {
     await this.axiosInstance.post(`/contests/${contestId}/end`, undefined, {
       signal: options?.signal,
       timeout: options?.timeoutMs ?? 10_000,
-    });
+      _expectedUserId: options?.expectedUserId,
+    } as Record<string, unknown>);
   }
 
   async getContestById(contestId: string): Promise<Contest | null> {

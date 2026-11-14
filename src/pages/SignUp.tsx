@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import axios from "axios";
 import { signUpUser, type SignUpData } from "../lib/auth";
 import { Link, useNavigate } from "react-router-dom";
 import Navbar from "./components/Navbar";
@@ -9,6 +10,13 @@ import { fetchSignInMethodsForEmail } from "firebase/auth";
 import { auth } from "../lib/firebase";
 
 import { BRANCHES, getDepartmentFromBranch } from "@/constants";
+
+interface SignupErrorPayload {
+  errors?: { field?: string; message?: string }[];
+  field?: string;
+  error?: string;
+  message?: string;
+}
 
 export const Signup: React.FC = () => {
   const [formData, setFormData] = useState<Omit<SignUpData, 'joiningYear'> & { confirmPassword: string; joiningYear: number | "" }>({
@@ -64,14 +72,13 @@ export const Signup: React.FC = () => {
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
-    const updatedData: any = { ...formData, [name]: value };
-    
     if (name === 'joiningYear') {
-      updatedData[name] = value ? parseInt(value, 10) : "";
+      setFormData(current => ({ ...current, joiningYear: value ? parseInt(value, 10) : "" }));
       setErrors(prev => ({ ...prev, id: undefined }));
+    } else {
+      const fieldName = name as Exclude<keyof typeof formData, 'joiningYear'>;
+      setFormData(current => ({ ...current, [fieldName]: value }));
     }
-    
-    setFormData(updatedData);
 
     if (errors[name as keyof typeof errors]) {
       setErrors(prev => ({ ...prev, [name]: undefined }));
@@ -226,10 +233,10 @@ export const Signup: React.FC = () => {
       });
 
       setTimeout(() => navigate("/"), 2000);
-    } catch (err: any) {
+    } catch (err: unknown) {
       let message = "Signup failed. Please try again.";
 
-      const resData = err?.response?.data;
+      const resData = axios.isAxiosError<SignupErrorPayload>(err) ? err.response?.data : undefined;
       if (resData?.errors && Array.isArray(resData.errors)) {
         const fieldMap: Record<string, keyof typeof errors> = {
           usn: 'id',
@@ -240,7 +247,7 @@ export const Signup: React.FC = () => {
         };
         const newErr: typeof errors = {};
         for (const item of resData.errors) {
-          const mappedField = fieldMap[item.field] || (item.field as keyof typeof errors);
+          const mappedField = fieldMap[item.field ?? ''] || (item.field as keyof typeof errors);
           if (mappedField && typeof item.message === 'string') {
             newErr[mappedField] = item.message;
             message = item.message;
@@ -258,7 +265,7 @@ export const Signup: React.FC = () => {
         message = resData.error;
       } else if (typeof resData?.message === "string") {
         message = resData.message;
-      } else if (err?.code) {
+      } else if (typeof err === 'object' && err !== null && 'code' in err && typeof err.code === 'string') {
         switch (err.code) {
           case "auth/email-already-in-use":
             message = "Email already exists";

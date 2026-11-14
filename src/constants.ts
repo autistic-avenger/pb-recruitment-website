@@ -49,7 +49,7 @@ export const getDepartmentFromBranch = (branch: string): string => {
 };
 
 export const getBranchFromDepartment = (department: string): string => {
-  const entry = Object.entries(BRANCHES_TO_DEPARTMENT).find(([_, code]) => code === department);
+  const entry = Object.entries(BRANCHES_TO_DEPARTMENT).find((branch) => branch[1] === department);
   return entry ? entry[0] : department;
 };
 

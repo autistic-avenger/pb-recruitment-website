@@ -17,7 +17,7 @@ const Admin: React.FC = () => {
         setIsLoading(true);
         const response = await adminApi.getContestsList();
         setContests(response as Contest[]);
-      } catch (error) {
+      } catch {
         toast.error("Error fetching contests. Please try again later. If problem persists, contact volunteers.");
       } finally {
         setIsLoading(false);

@@ -3,6 +3,7 @@ import { toast } from 'react-toastify';
 import {
   MAX_TAB_SWITCHES,
   type LocalTabSwitchState,
+  getContestSubmitted,
   getPendingObservationPrefix,
   getTabSwitchStateKey,
   readLocalTabSwitchState,
@@ -22,6 +23,7 @@ import {
   reconcileContestSessionStatus,
   reconcileServerSnapshot,
 } from '../tabSwitchSync';
+import { isSessionEndedForScope, type ContestSessionScope } from '../sessionScope';
 
 interface UseTabSwitchTrackerOptions {
   contestId?: string;
@@ -75,7 +77,9 @@ export const useTabSwitchTracker = ({
   const [isWarningModalOpen, setIsWarningModalOpen] = useState<boolean>(false);
   const [apiStatus, setApiStatus] = useState<TabSwitchApiStatus>('idle');
   const [pendingSyncCount, setPendingSyncCount] = useState<number>(0);
-  const [isSessionEnded, setIsSessionEnded] = useState<boolean>(false);
+  const [endedSessionScope, setEndedSessionScope] = useState<ContestSessionScope | null>(null);
+  const isSessionEnded = isSessionEndedForScope(endedSessionScope, contestId, userId) ||
+    Boolean(contestId && userId && getContestSubmitted(contestId, userId));
 
   const activeScopeRef = useRef<TrackerScope | null>(null);
   const isCountingEnabledRef = useRef<boolean>(isCountingEnabled);
@@ -163,7 +167,7 @@ export const useTabSwitchTracker = ({
       if (!isScopeActive(scope) || outcome.aborted) return;
 
       if (outcome.isSessionEnded) {
-        setIsSessionEnded(true);
+        setEndedSessionScope({ contestId: scope.contestId, userId: scope.userId });
       }
 
       if (outcome.apiStatus !== 'offline') {

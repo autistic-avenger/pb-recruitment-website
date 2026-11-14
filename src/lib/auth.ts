@@ -27,7 +27,7 @@ export const resetPassword = async (email: string) => {
   try {
     await sendPasswordResetEmail(auth, email);
     return { success: true };
-  } catch (error: any) {
-    return { success: false, message: error.message };
+  } catch (error: unknown) {
+    return { success: false, message: error instanceof Error ? error.message : 'Failed to reset password.' };
   }
 };

@@ -1,6 +1,7 @@
 import { auth } from "./firebase";
 import { updatePassword, updateEmail, EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
 import { userApi } from "@/services/api/userApi";
+import type { UserProfileResponse } from "@/services/api/userApi";
 import { getBranchFromDepartment } from "@/constants";
 
 export interface UserProfile {
@@ -12,7 +13,7 @@ export interface UserProfile {
   branch: string;
 }
 
-const mapApiToProfile = (apiData: any): UserProfile => {
+const mapApiToProfile = (apiData: UserProfileResponse): UserProfile => {
   const joiningYear = apiData.current_year || 1;
 
   return {
@@ -21,11 +22,11 @@ const mapApiToProfile = (apiData: any): UserProfile => {
     email: apiData.email || '',
     mobile: apiData.mobile_number || '',
     joiningYear,
-    branch: getBranchFromDepartment(apiData.department) || apiData.department || '',
+    branch: getBranchFromDepartment(apiData.department ?? '') || apiData.department || '',
   };
 };
 
-export const fetchUserProfile = async (_userId: string): Promise<UserProfile | null> => {
+export const fetchUserProfile = async (): Promise<UserProfile | null> => {
   try {
     const apiData = await userApi.getUserProfile();
     return mapApiToProfile(apiData);

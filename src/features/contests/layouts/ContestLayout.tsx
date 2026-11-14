@@ -1,5 +1,6 @@
 import { Navigate, Outlet, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect, useRef, useCallback } from 'react';
+import axios from 'axios';
 import { toast } from 'react-toastify';
 import { ShieldAlert, LogOut } from 'lucide-react';
 import { ContestHeader } from '../components/ContestHeader';
@@ -9,6 +10,7 @@ import { TabSwitchWarningModal } from '../components/TabSwitchWarningModal';
 import { useContest } from '../hooks/useContest';
 import { useTabSwitchTracker } from '../hooks/useTabSwitchTracker';
 import { useContestEventBlocker } from '../hooks/useContestEventBlocker';
+import { isContestScopeCurrent } from '../sessionScope';
 import { useAuth } from '@/lib/AuthContext';
 import {
   MAX_TAB_SWITCHES,
@@ -18,6 +20,12 @@ import {
   setContestEntered,
 } from '@/lib/contestStorage';
 import { contestApi } from '@/services/api/contestApi';
+
+interface EndContestRequest {
+  contestId: string;
+  userId: string;
+  controller: AbortController;
+}
 
 export interface ContestOutletContext {
   isLive: boolean;
@@ -42,6 +50,8 @@ export const ContestLayout = () => {
   const [isEndModalOpen, setIsEndModalOpen] = useState(false);
   const [isEndingContest, setIsEndingContest] = useState(false);
   const [endContestError, setEndContestError] = useState<string | null>(null);
+  const [endModalScope, setEndModalScope] = useState<{ contestId: string; userId: string } | null>(null);
+  const [endErrorScope, setEndErrorScope] = useState<{ contestId: string; userId: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasEnteredContest, setHasEnteredContest] = useState(() =>
     Boolean(user?.uid && contestId && getContestEntered(contestId, user.uid))
@@ -50,6 +60,12 @@ export const ContestLayout = () => {
   const hasExitedRef = useRef(false);
   const wasLiveRef = useRef(false);
   const isRefetchingRef = useRef(false);
+  const currentScopeRef = useRef({ contestId, userId: user?.uid });
+  currentScopeRef.current = { contestId, userId: user?.uid };
+  const endContestRequestRef = useRef<EndContestRequest | null>(null);
+  const isEndModalOpenForScope = isEndModalOpen && isContestScopeCurrent(endModalScope, contestId, user?.uid);
+  const isEndingContestForScope = isEndingContest && isContestScopeCurrent(endContestRequestRef.current, contestId, user?.uid);
+  const endContestErrorForScope = isContestScopeCurrent(endErrorScope, contestId, user?.uid) ? endContestError : null;
 
   const { contest, isLoading: isContestLoading, refetch } = useContest(contestId || '');
   const isLeaderboardPage = location.pathname.endsWith('/leaderboard');
@@ -90,6 +106,24 @@ export const ContestLayout = () => {
 
   useEffect(() => {
     setHasEnteredContest(Boolean(user?.uid && contestId && getContestEntered(contestId, user.uid)));
+  }, [contestId, user?.uid]);
+
+  useEffect(() => {
+    endContestRequestRef.current?.controller.abort();
+    endContestRequestRef.current = null;
+    setIsEndModalOpen(false);
+    setIsEndingContest(false);
+    setEndContestError(null);
+    setEndModalScope(null);
+    setEndErrorScope(null);
+
+    return () => {
+      const request = endContestRequestRef.current;
+      if (request && request.contestId === contestId && request.userId === user?.uid) {
+        request.controller.abort();
+        endContestRequestRef.current = null;
+      }
+    };
   }, [contestId, user?.uid]);
 
   const handleEnteredChange = useCallback((entered: boolean) => {
@@ -274,6 +308,11 @@ export const ContestLayout = () => {
 
   const handleOpenEndModal = () => {
     setEndContestError(null);
+    if (contestId && user?.uid) {
+      const scope = { contestId, userId: user.uid };
+      setEndModalScope(scope);
+      setEndErrorScope(scope);
+    }
     setIsEndModalOpen(true);
   };
 
@@ -286,7 +325,12 @@ export const ContestLayout = () => {
   };
 
   const handleConfirmEndContest = async () => {
-    if (isEndingContest) return;
+    const existingRequest = endContestRequestRef.current;
+    if (isContestScopeCurrent(existingRequest, contestId, user?.uid)) return;
+    if (existingRequest) {
+      existingRequest.controller.abort();
+      endContestRequestRef.current = null;
+    }
     if (isSubmitting) {
       toast.warning("A submission is currently being processed. Please wait for it to complete.");
       return;
@@ -296,18 +340,39 @@ export const ContestLayout = () => {
       return;
     }
 
+    const request: EndContestRequest = {
+      contestId,
+      userId: user.uid,
+      controller: new AbortController(),
+    };
+    endContestRequestRef.current = request;
+    const isCurrentRequest = () => (
+      endContestRequestRef.current === request &&
+      !request.controller.signal.aborted &&
+      isContestScopeCurrent(request, currentScopeRef.current.contestId, currentScopeRef.current.userId)
+    );
+
     setIsEndingContest(true);
     setEndContestError(null);
 
     try {
-      await contestApi.endContestSession(contestId);
+      await contestApi.endContestSession(contestId, {
+        signal: request.controller.signal,
+        expectedUserId: user.uid,
+      });
+      if (!isCurrentRequest()) return;
       setContestSubmitted(contestId, user.uid);
       setIsEndModalOpen(false);
       toast.info("Contest ended. Only your submitted solutions will be scored.");
       handleLeaveContest();
-    } catch (err: any) {
+    } catch (err: unknown) {
+      if (!isCurrentRequest()) return;
       try {
-        const result = await contestApi.getContestSessionStatus(contestId);
+        const result = await contestApi.getContestSessionStatus(contestId, {
+          signal: request.controller.signal,
+          expectedUserId: user.uid,
+        });
+        if (!isCurrentRequest()) return;
         if (result.kind === 'ok' && result.status.is_session_ended) {
           setContestSubmitted(contestId, user.uid);
           setIsEndModalOpen(false);
@@ -316,15 +381,20 @@ export const ContestLayout = () => {
           return;
         }
       } catch {
-        // Status check failed or ambiguous
+        if (!isCurrentRequest()) return;
       }
 
-      const message =
-        err?.response?.data?.message || err?.message || "Failed to end contest session. Please try again.";
+      const message = axios.isAxiosError<{ message?: string; error?: string }>(err)
+        ? err.response?.data?.message || err.response?.data?.error || err.message
+        : err instanceof Error ? err.message : "Failed to end contest session. Please try again.";
       setEndContestError(message);
+      setEndErrorScope({ contestId, userId: user.uid });
       toast.error(message);
     } finally {
-      setIsEndingContest(false);
+      if (isCurrentRequest()) {
+        endContestRequestRef.current = null;
+        setIsEndingContest(false);
+      }
     }
   };
 
@@ -438,18 +508,18 @@ export const ContestLayout = () => {
       </div>
 
       <EndContestModal
-        isOpen={isEndModalOpen}
+        isOpen={isEndModalOpenForScope}
         onClose={() => {
-          if (!isEndingContest) {
+          if (!isEndingContestForScope) {
             setIsEndModalOpen(false);
             setEndContestError(null);
           }
         }}
         onConfirm={handleConfirmEndContest}
         contestName={contest?.name}
-        isEnding={isEndingContest}
+        isEnding={isEndingContestForScope}
         isSubmitting={isSubmitting}
-        error={endContestError}
+        error={endContestErrorForScope}
       />
 
       {isParticipating && (

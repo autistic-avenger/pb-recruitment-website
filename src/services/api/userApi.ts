@@ -3,6 +3,15 @@ import { auth } from '@/lib/firebase';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
+export interface UserProfileResponse {
+  name?: string;
+  usn?: string;
+  email?: string;
+  mobile_number?: string;
+  current_year?: number;
+  department?: string;
+}
+
 class UserApiService {
   private axiosInstance: AxiosInstance;
 
@@ -33,8 +42,8 @@ class UserApiService {
     );
   }
 
-  async getUserProfile(): Promise<any> {
-    const response = await this.axiosInstance.get('/users/profile');
+  async getUserProfile(): Promise<UserProfileResponse> {
+    const response = await this.axiosInstance.get<UserProfileResponse>('/users/profile');
     return response.data;
   }
 }

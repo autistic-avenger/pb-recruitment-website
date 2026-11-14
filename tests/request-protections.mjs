@@ -11,6 +11,16 @@ const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'
 const compile = source => ts.transpileModule(source.replaceAll('import.meta.env', '({})'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
 }).outputText;
+const sessionScopeModule = { exports: {}, require: () => ({}) };
+vm.runInNewContext(compile(read('src/features/contests/sessionScope.ts')), sessionScopeModule);
+const { isSessionEndedForScope, isContestScopeCurrent } = sessionScopeModule.exports;
+const endedForAccountA = { contestId: 'contest-A', userId: 'account-A' };
+assert.equal(isSessionEndedForScope(endedForAccountA, 'contest-A', 'account-A'), true);
+assert.equal(isSessionEndedForScope(endedForAccountA, 'contest-B', 'account-A'), false, 'completion does not leak to another contest on first render');
+assert.equal(isSessionEndedForScope(endedForAccountA, 'contest-A', 'account-B'), false, 'completion does not leak to another account on first render');
+assert.equal(isContestScopeCurrent(endedForAccountA, 'contest-B', 'account-A'), false, 'a late End response from contest A is stale in contest B');
+assert.equal(isContestScopeCurrent(endedForAccountA, 'contest-A', 'account-B'), false, 'a late End response from another account is stale');
+console.log('Session completion is visible only to its contest and account scope.');
 const error = (status, retryAfter) => new axios.AxiosError('Synthetic request failure', undefined, undefined, undefined, {
   status, headers: { 'retry-after': retryAfter }, data: {},
 });
@@ -558,6 +568,13 @@ const mathDependencies = {
   'remark-math': await import('remark-math'),
   'rehype-katex': await import('rehype-katex'),
 };
+const markdownTextDependencies = {
+  unified: await import('unified'),
+  'remark-parse': await import('remark-parse'),
+};
+const markdownTextModule = { exports: {}, require: name => markdownTextDependencies[name] };
+vm.runInNewContext(compile(read('src/features/contests/markdownText.ts')), markdownTextModule);
+mathDependencies['../../markdownText'] = markdownTextModule.exports;
 const mathModule = { exports: {}, require: name => mathDependencies[name] };
 vm.runInNewContext(compile(read('src/features/contests/components/workspace/MathText.tsx')
   .replace("import 'katex/dist/katex.min.css';", '')), mathModule);
@@ -565,4 +582,32 @@ for (const input of ['<img src=x onerror=alert(1)>', '[link](javascript:alert%28
   const rendered = renderToStaticMarkup(React.createElement(mathModule.exports.MathText, { children: `:::markdown\n${input}` }));
   assert.ok(!rendered.includes('<img') && !rendered.includes('href="javascript:'), rendered);
 }
+const renderMathText = children => renderToStaticMarkup(React.createElement(mathModule.exports.MathText, { children }));
+const proseDisplayMath = renderMathText(`:::markdown\nCompute ${String.raw`\[x+1\]`} then continue.`);
+assert.ok(proseDisplayMath.includes('Compute') && proseDisplayMath.includes('then continue.'), proseDisplayMath);
+assert.ok(proseDisplayMath.includes('katex-display') && !proseDisplayMath.includes('katex-error'), proseDisplayMath);
+
+const adjacentDisplayMath = renderMathText(`:::markdown\n${String.raw`\[x\] \[y\]`}`);
+assert.equal((adjacentDisplayMath.match(/katex-display/g) ?? []).length, 2, adjacentDisplayMath);
+assert.ok(!adjacentDisplayMath.includes('katex-error'), adjacentDisplayMath);
+
+const emphasizedInlineMath = renderMathText(`:::markdown\n${String.raw`\(x^{*} + y^{*}\)`}`);
+assert.ok(emphasizedInlineMath.includes('class="katex"') && !emphasizedInlineMath.includes('katex-error'), emphasizedInlineMath);
+
+const relativeLinkMath = renderMathText(String.raw`:::markdown
+[details](../chapter/\(intro\))
+[Size \(x\)](mailto:math@example.invalid)`);
+assert.ok(relativeLinkMath.includes('href="../chapter/(intro)"'), relativeLinkMath);
+assert.ok(relativeLinkMath.includes('href="mailto:math@example.invalid"'), relativeLinkMath);
+assert.ok(relativeLinkMath.includes('class="katex"'), relativeLinkMath);
+
+const codeDelimiterBeforeFormula = renderMathText(`:::markdown\nUse \`${String.raw`\(`}\` before the formula ${String.raw`\(x+1\)`}.`);
+assert.ok(codeDelimiterBeforeFormula.includes('class="katex"') && !codeDelimiterBeforeFormula.includes('katex-error'), codeDelimiterBeforeFormula);
+assert.ok(codeDelimiterBeforeFormula.includes('\\('), codeDelimiterBeforeFormula);
+
+const quotedProseDisplayMath = renderMathText(`:::markdown\n> Given ${String.raw`\[x+1\]`} then continue.`);
+assert.match(quotedProseDisplayMath, /<blockquote>[\s\S]*Given[\s\S]*katex-display[\s\S]*then continue\.[\s\S]*<\/blockquote>/, quotedProseDisplayMath);
+assert.ok(!quotedProseDisplayMath.includes('&gt;'), quotedProseDisplayMath);
+const listDisplayMath = renderMathText(`:::markdown\n- ${String.raw`\[x+1\]`}`);
+assert.match(listDisplayMath, /<li>[\s\S]*katex-display[\s\S]*<\/li>/, listDisplayMath);
 console.log('Actual Markdown/LaTeX renderer rejects executable HTML and JavaScript links.');
